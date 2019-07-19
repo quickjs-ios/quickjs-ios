@@ -1,0 +1,48 @@
+name: QuickJS-iOS
+attributes:
+  CLASSPREFIX: QJS
+options:
+  bundleIdPrefix: com.luafan
+  developmentLanguage: en
+settings:
+targets:
+  QuickJS-iOS:
+    type: library.static
+    platform: iOS
+    deploymentTarget: "8.0"
+    scheme:
+      testTargets:
+        - QuickJS-iOSTests
+    sources:
+      - path: quickjs-2019-07-09
+        excludes:
+          - "jscompress.c"
+          - "qjs.c"
+          - "qjsc.c"
+          - "unicode_gen.c"
+          - "run-test262.c"
+          - "doc"
+          - "*[!c]"
+        buildPhase: sources
+      - path: QuickJS-iOS
+        excludes:
+      - path: quickjs-2019-07-09
+        excludes:
+          - "*.sh"
+          - "*[!h]"
+        buildPhase: headers
+    settings:
+      INFOPLIST_FILE: QuickJS-iOS/Info.plist
+      GCC_PREFIX_HEADER: QuickJS-iOS/PrefixHeader.pch
+      OTHER_CFLAGS: $(inherited) -DCONFIG_VERSION=\"2019-07-09\"
+      ENABLE_BITCODE: YES
+      TARGETED_DEVICE_FAMILY: 1
+      PRODUCT_BUNDLE_IDENTIFIER: com.luafan.QuickJS-iOS
+  QuickJS-iOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "8.0"
+    sources: QuickJS-iOSTests
+    dependencies:
+      - target: QuickJS-iOS
+
