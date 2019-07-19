@@ -7,7 +7,6 @@
 #else
 #include <string.h>
 
-#include "cutils.h"
 #include "quickjs-libc.h"
 
 #endif

@@ -11,6 +11,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 typedef struct JSContext JSContext;
+typedef struct JSValue JSValue;
 
 @interface QJSContext : NSObject
 
@@ -22,6 +23,13 @@ typedef struct JSContext JSContext;
 - (id) eval: (NSString *) script;
 - (id) eval: (NSString *) script filename: (NSString *) filename;
 - (id) eval: (NSString *) script filename: (NSString *) filename flags: (int) flags;
+
+- (id) getGlobalKey: (id) key;
+- (void) setGlobalKey: (id) key value: (id) value;
+
+- (id) getObject: (JSValue) target key: (id) key;
+- (void) setObject: (JSValue) target key: (id) key value: (id) value;
+
 @end
 
 NS_ASSUME_NONNULL_END
