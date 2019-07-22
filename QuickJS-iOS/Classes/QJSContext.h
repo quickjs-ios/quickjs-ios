@@ -6,12 +6,12 @@
 //
 
 #import "QJSRuntime.h"
+#import "quickjs.h"
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
-typedef struct JSContext JSContext;
-typedef struct JSValue JSValue;
+typedef struct JSMapState JSMapState;
 
 @interface QJSContext : NSObject
 
@@ -29,6 +29,9 @@ typedef struct JSValue JSValue;
 
 - (id) getObject: (JSValue) target key: (id) key;
 - (void) setObject: (JSValue) target key: (id) key value: (id) value;
+
+- (id) objectFromValue: (JSValue) value;
+- (JSValue) valueFromObject: (id) object;
 
 @end
 

@@ -14,15 +14,16 @@ targets:
       testTargets:
         - QuickJS-iOSTests
     sources:
-      - path: quickjs-2019-07-09/quickjs.c
-      - path: quickjs-2019-07-09/bjson.c
-      - path: quickjs-2019-07-09/cutils.c
-      - path: quickjs-2019-07-09/libbf.c
-      - path: quickjs-2019-07-09/libregexp.c
-      - path: quickjs-2019-07-09/libunicode.c
-      - path: quickjs-2019-07-09/quickjs-libc.c
-      - path: quickjs-2019-07-09/quickjs.h
-      - path: quickjs-2019-07-09/quickjs-libc.h
+      - path: quickjs-2019-07-21/quickjs.c
+      - path: quickjs-2019-07-21/bjson.c
+      - path: quickjs-2019-07-21/cutils.c
+      - path: quickjs-2019-07-21/libbf.c
+      - path: quickjs-2019-07-21/libregexp.c
+      - path: quickjs-2019-07-21/libunicode.c
+      - path: quickjs-2019-07-21/quickjs-libc.c
+      - path: quickjs-2019-07-21/quickjs.h
+      - path: quickjs-2019-07-21/quickjs-libc.h
+      - path: quickjs-2019-07-21/quickjs-atom.h
       - path: QuickJS-iOS
         excludes:
     settings:

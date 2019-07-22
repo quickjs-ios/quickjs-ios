@@ -14,6 +14,23 @@
 
 @end
 
+@interface TestObject : NSObject
+
+@end
+
+@implementation TestObject
+
+-(void)dealloc {
+    NSLog(@"TestObject dealloc");
+}
+
+- (NSArray *) test: (NSNumber *) a :(NSString *) b :(NSNumber *) c{
+    NSLog(@"%@ %@ %@", a, b, c);
+    return @[@"a", @NO, @(123)];
+}
+
+@end
+
 @implementation QuickJS_iOSTests
 
 - (void)setUp {
@@ -40,12 +57,12 @@
     XCTAssert([runtime numberOfContexts] == 0);
 }
 
-- (void)xtestMultiContexts {
+- (void)testMultiContexts {
     QJSRuntime *runtime = [[QJSRuntime alloc] init];
     QJSContext *context1 = [runtime newContext];
     context1 = nil;
     QJSContext *context2 = [runtime newContext];
-    XCTAssert([runtime numberOfContexts] == 2);
+    XCTAssert([runtime numberOfContexts] == 1);
     
     runtime = nil;
     XCTAssert([QJSRuntime numberOfRuntimes] == 1);
@@ -61,8 +78,30 @@
     QJSContext *context = [runtime newContext];
     [context setGlobalKey: @"testval" value: @(1.1)];
     
-    NSString *ret = [context eval: @"console.log(typeof testval)"];
+    NSDictionary *ret = [context eval: @"console.log(typeof testval); var x = {a:1, b:2};console.log(JSON.stringify(x));x;"];
+    NSLog(@"%@", ret);
 //    XCTAssert([ret isEqualToString: @"hello"]);
+}
+
+- (void)testContext_methodInvoke{
+    QJSRuntime *runtime = [[QJSRuntime alloc] init];
+    QJSContext *context = [runtime newContext];
+    TestObject *obj = [TestObject new];
+    __weak TestObject *weakObj = obj;
+    [context setGlobalKey: @"testval" value: obj];
+    obj = nil;
+    
+    NSDictionary *ret = [context eval: @"testval.invoke('test', 1, 'a', false);"];
+    NSLog(@"%@", ret);
+    
+    //TODO: add this support in native.
+    [context eval: @"testval = Proxy.revocable(testval, {get: function(target, name){return function(...args){return target.invoke(name, ...args)}}}).proxy;"];
+    
+    ret = [context eval: @"testval.test('a', 3, true);"];
+    NSLog(@"%@", ret);
+
+    context = nil;
+    XCTAssert(weakObj == nil);
 }
 
 - (void) testContext_ObjectMapping {
@@ -100,6 +139,12 @@
     XCTAssert([[context getGlobalKey: @"arrayVal"] isEqual: array]);
     XCTAssert([[context eval: @"arrayVal;"] isEqual: array]);
     
+    NSDictionary *dic = @{@"k1": @(1), @"k2": @"test", @"100": @YES};
+    [context setGlobalKey: @"dicVal" value: dic];
+    NSString *typeOfDic = [context eval: @"typeof dicVal;"];
+    XCTAssert([typeOfDic isEqualToString: @"object"]);
+    XCTAssert([[context getGlobalKey: @"dicVal"] isEqual: dic]);
+    XCTAssert([[context eval: @"dicVal;"] isEqual: dic]);
 }
 
 - (void) testClasses{
