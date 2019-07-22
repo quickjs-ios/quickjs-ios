@@ -13,8 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface QJSConfiguration : NSObject
 
-- (void) setupContext: (QJSContext *) context;
-- (void) setupRuntime: (QJSRuntime *) runtime;
+- (void)setupContext:(QJSContext *)context;
+- (void)setupRuntime:(QJSRuntime *)runtime;
 
 @end
 

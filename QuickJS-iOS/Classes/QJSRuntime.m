@@ -5,10 +5,10 @@
 //  Created by Sam Chang on 7/18/19.
 //
 
-#import "quickjs-libc.h"
 #import "QJSRuntime.h"
 
 #import "QJSContext.h"
+#import "quickjs-libc.h"
 
 @interface QJSContext (Private)
 
@@ -49,11 +49,10 @@ static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
 
 - (instancetype)init {
     QJSConfiguration *config = [[QJSConfiguration alloc] init];
-    return [self initWithConfiguration: config];
+    return [self initWithConfiguration:config];
 }
 
-- (instancetype)initWithConfiguration: (QJSConfiguration *) config
-{
+- (instancetype)initWithConfiguration:(QJSConfiguration *)config {
     self = [super init];
     if (self) {
         self.config = config;
@@ -61,7 +60,7 @@ static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
         self.contextMap = [NSMapTable weakToWeakObjectsMapTable];
         [runtimeMap setObject:self forKey:self];
 
-        [self.config setupRuntime: self];
+        [self.config setupRuntime:self];
     }
     return self;
 }
@@ -73,7 +72,7 @@ static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
 
 - (QJSContext *)newContext {
     QJSContext *context = [[QJSContext alloc] initWithRuntime:self];
-    [self.config setupContext: context];
+    [self.config setupContext:context];
     [self.contextMap setObject:context forKey:context];
     return context;
 }
