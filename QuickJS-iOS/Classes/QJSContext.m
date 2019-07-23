@@ -253,17 +253,53 @@ typedef struct {
 
 static void js_objc_finalizer(JSRuntime *rt, JSValue val) {
     NSObject *object = (__bridge_transfer NSObject *)JS_GetOpaque(val, js_objc_class_id);
-    NSLog(@"object %@", object);
-    // object released.
+#ifdef DEBUG
+    NSLog(@"js_objc_finalizer %@", object);
+    // object released after return.
+#endif
 }
 
 static void js_objc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
     NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
-    NSLog(@"object %@", object);
+#ifdef DEBUG
+    NSLog(@"js_objc_mark %@", object);
+#endif
 }
 
 static JSValue js_objc_call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_val, int argc,
                             JSValueConst *argv) {
+    NSObject *object = (__bridge NSObject *)JS_GetOpaque(func_obj, js_objc_class_id);
+    if ([object isKindOfClass:blockClass]) {
+        id retObject = nil;
+        switch (argc) {
+            case 0:
+                retObject = ((dispatch_block_t_0)object)();
+                break;
+            case 1:
+                retObject = ((dispatch_block_t_1)object)([QJSContext objectFromValue:argv[0] context:ctx]);
+                break;
+            case 2:
+                retObject = ((dispatch_block_t_2)object)([QJSContext objectFromValue:argv[0] context:ctx],
+                                                         [QJSContext objectFromValue:argv[1] context:ctx]);
+                break;
+            case 3:
+                retObject = ((dispatch_block_t_3)object)([QJSContext objectFromValue:argv[0] context:ctx],
+                                                         [QJSContext objectFromValue:argv[1] context:ctx],
+                                                         [QJSContext objectFromValue:argv[2] context:ctx]);
+                break;
+            case 4:
+                retObject = ((dispatch_block_t_4)object)(
+                    [QJSContext objectFromValue:argv[0] context:ctx], [QJSContext objectFromValue:argv[1] context:ctx],
+                    [QJSContext objectFromValue:argv[2] context:ctx], [QJSContext objectFromValue:argv[3] context:ctx]);
+                break;
+            default:
+                break;
+        }
+
+        if (retObject) {
+            return [QJSContext valueFromObject:retObject context:ctx];
+        }
+    }
     return JS_UNDEFINED;
 }
 
@@ -504,8 +540,6 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
         [dic enumerateKeysAndObjectsUsingBlock:^(id _Nonnull key, id _Nonnull obj, BOOL *_Nonnull stop) {
             [QJSContext setObject:objectVal key:key value:obj context:ctx];
         }];
-    } else if ([object isKindOfClass:blockClass]) {
-
     } else {
         // raw object
         objectVal = JS_NewObjectClass(ctx, js_objc_class_id);

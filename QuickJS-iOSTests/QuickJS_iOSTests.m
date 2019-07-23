@@ -224,6 +224,26 @@
     XCTAssert([QJSRuntime numberOfRuntimes] == 0);
 }
 
+- (void)testQJSContext_Block {
+    dispatch_block_t_2 blk = ^id(NSNumber *a, NSNumber *b) {
+        return @(a.integerValue * 10 + b.integerValue);
+    };
+
+    @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
+        QJSValue *globalValue = [context getGlobalValue];
+        [globalValue setObject:blk forKey:@"objcAdd"];
+
+        QJSValue *objcAdd = [globalValue objectForKey:@"objcAdd"];
+        XCTAssert(objcAdd.objValue == blk);
+
+        QJSValue *retValue = [context eval:@"var a=objcAdd(2,3);console.log(a);a;"];
+        XCTAssert([retValue.objValue isEqual:@(23)]);
+    }
+    XCTAssert([QJSRuntime numberOfRuntimes] == 0);
+}
+
 //- (void)testPerformanceExample {
 //    // This is an example of a performance test case.
 //    [self measureBlock:^{
