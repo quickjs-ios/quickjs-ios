@@ -75,10 +75,12 @@
 - (void)testContextSmokeTest {
     QJSRuntime *runtime = [[QJSRuntime alloc] init];
     QJSContext *context = [runtime newContext];
-    [context setGlobalKey:@"testval" value:@(1.1)];
+
+    QJSValue *globalValue = [context getGlobalValue];
+    [globalValue setObject:@(1.1) forKey:@"testval"];
 
     NSDictionary *ret =
-        [context eval:@"console.log(typeof testval); var x = {a:1, b:2};console.log(JSON.stringify(x));x;"];
+        [context eval:@"console.log(typeof testval); var x = {a:1, b:2};console.log(JSON.stringify(x));x;"].objValue;
     NSLog(@"%@", ret);
     //    XCTAssert([ret isEqualToString: @"hello"]);
 }
@@ -86,66 +88,108 @@
 - (void)testContext_methodInvoke {
     QJSRuntime *runtime = [[QJSRuntime alloc] init];
     QJSContext *context = [runtime newContext];
+
     TestObject *obj = [TestObject new];
     __weak TestObject *weakObj = obj;
-    [context setGlobalKey:@"testval" value:obj];
-    obj = nil;
 
-    NSDictionary *ret = [context eval:@"testval.invoke('test', 1, 'a', false);"];
-    NSLog(@"%@", ret);
+    @autoreleasepool {
+        QJSValue *globalValue = [context getGlobalValue];
+        [globalValue setObject:obj forKey:@"testval"];
+        TestObject *obj2 = [globalValue objectForKey:@"testval"].objValue;
+        XCTAssert(obj == obj2);
+        obj2 = nil;
+        obj = nil;
 
-    // TODO: add this support in native.
-    [context eval:@"testval = Proxy.revocable(testval, {get: function(target, name){return function(...args){return "
-                  @"target.invoke(name, ...args)}}}).proxy;"];
+        NSDictionary *ret = [context eval:@"testval(123);testval.invoke('test', 1, 'a', false);"].objValue;
+        NSLog(@"%@", ret);
 
-    ret = [context eval:@"testval.test('a', 3, true);"];
-    NSLog(@"%@", ret);
+        // TODO: add this support in native.
+        [context
+            eval:@"testval = Proxy.revocable(testval, {get: function(target, name){return function(...args){return "
+                 @"target.invoke(name, ...args)}}}).proxy;"];
+
+        ret = [context eval:@"testval.test('a', 3, true);"].objValue;
+        NSLog(@"%@", ret);
+    }
 
     context = nil;
     XCTAssert(weakObj == nil);
 }
 
 - (void)testContext_ObjectMapping {
-    QJSRuntime *runtime = [[QJSRuntime alloc] init];
-    QJSContext *context = [runtime newContext];
+    @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
+        QJSValue *globalValue = [context getGlobalValue];
 
-    [context setGlobalKey:@"boolVal" value:@YES];
-    NSString *typeOfBool = [context eval:@"typeof boolVal;"];
-    XCTAssert([typeOfBool isEqualToString:@"boolean"]);
-    XCTAssert([[context getGlobalKey:@"boolVal"] isEqual:@YES]);
-    XCTAssert([[context eval:@"boolVal;"] isEqual:@YES]);
+        [globalValue setObject:@YES forKey:@"boolVal"];
+        NSString *typeOfBool = [context eval:@"typeof boolVal;"].objValue;
+        XCTAssert([typeOfBool isEqualToString:@"boolean"]);
+        XCTAssert([[globalValue objectForKey:@"boolVal"].objValue isEqual:@YES]);
+        XCTAssert([[context eval:@"boolVal;"].objValue isEqual:@YES]);
 
-    [context setGlobalKey:@"intVal" value:@(1)];
-    NSString *typeOfInt = [context eval:@"typeof intVal;"];
-    XCTAssert([typeOfInt isEqualToString:@"number"]);
-    XCTAssert([[context getGlobalKey:@"intVal"] isEqual:@(1)]);
-    XCTAssert([[context eval:@"intVal;"] isEqual:@(1)]);
+        [globalValue setObject:@(1) forKey:@"intVal"];
+        NSString *typeOfInt = [context eval:@"typeof intVal;"].objValue;
+        XCTAssert([typeOfInt isEqualToString:@"number"]);
+        XCTAssert([[globalValue objectForKey:@"intVal"].objValue isEqual:@(1)]);
+        XCTAssert([[context eval:@"intVal;"].objValue isEqual:@(1)]);
 
-    [context setGlobalKey:@"doubleVal" value:@(1.1)];
-    NSString *typeOfDouble = [context eval:@"typeof doubleVal;"];
-    XCTAssert([typeOfDouble isEqualToString:@"number"]);
-    XCTAssert([[context getGlobalKey:@"doubleVal"] isEqual:@(1.1)]);
-    XCTAssert([[context eval:@"doubleVal;"] isEqual:@(1.1)]);
+        [globalValue setObject:@(1.1) forKey:@"doubleVal"];
+        NSString *typeOfDouble = [context eval:@"typeof doubleVal;"].objValue;
+        XCTAssert([typeOfDouble isEqualToString:@"number"]);
+        XCTAssert([[globalValue objectForKey:@"doubleVal"].objValue isEqual:@(1.1)]);
+        XCTAssert([[context eval:@"doubleVal;"].objValue isEqual:@(1.1)]);
 
-    [context setGlobalKey:@"stringVal" value:@"test"];
-    NSString *typeOfString = [context eval:@"typeof stringVal;"];
-    XCTAssert([typeOfString isEqualToString:@"string"]);
-    XCTAssert([[context getGlobalKey:@"stringVal"] isEqual:@"test"]);
-    XCTAssert([[context eval:@"stringVal;"] isEqual:@"test"]);
+        [globalValue setObject:@"test" forKey:@"stringVal"];
+        NSString *typeOfString = [context eval:@"typeof stringVal;"].objValue;
+        XCTAssert([typeOfString isEqualToString:@"string"]);
+        XCTAssert([[globalValue objectForKey:@"stringVal"].objValue isEqual:@"test"]);
+        XCTAssert([[context eval:@"stringVal;"].objValue isEqual:@"test"]);
 
-    NSArray *array = @[@1, @(1.1), @"test", @YES];
-    [context setGlobalKey:@"arrayVal" value:array];
-    NSString *typeOfArray = [context eval:@"typeof arrayVal;"];
-    XCTAssert([typeOfArray isEqualToString:@"object"]);
-    XCTAssert([[context getGlobalKey:@"arrayVal"] isEqual:array]);
-    XCTAssert([[context eval:@"arrayVal;"] isEqual:array]);
+        NSArray *array = @[@1, @(1.1), @"test", @YES];
+        [globalValue setObject:array forKey:@"arrayVal"];
+        NSString *typeOfArray = [context eval:@"typeof arrayVal;"].objValue;
+        XCTAssert([typeOfArray isEqualToString:@"object"]);
+        XCTAssert([[globalValue objectForKey:@"arrayVal"].objValue isEqual:array]);
+        XCTAssert([[context eval:@"arrayVal;"].objValue isEqual:array]);
 
-    NSDictionary *dic = @{@"k1": @(1), @"k2": @"test", @"100": @YES};
-    [context setGlobalKey:@"dicVal" value:dic];
-    NSString *typeOfDic = [context eval:@"typeof dicVal;"];
-    XCTAssert([typeOfDic isEqualToString:@"object"]);
-    XCTAssert([[context getGlobalKey:@"dicVal"] isEqual:dic]);
-    XCTAssert([[context eval:@"dicVal;"] isEqual:dic]);
+        NSDictionary *dic = @{@"k1": @(1), @"k2": @"test", @"100": @YES};
+        [globalValue setObject:dic forKey:@"dicVal"];
+        NSString *typeOfDic = [context eval:@"typeof dicVal;"].objValue;
+        XCTAssert([typeOfDic isEqualToString:@"object"]);
+        XCTAssert([[globalValue objectForKey:@"dicVal"].objValue isEqual:dic]);
+        XCTAssert([[context eval:@"dicVal;"].objValue isEqual:dic]);
+    }
+
+    XCTAssert([QJSRuntime numberOfRuntimes] == 0);
+}
+
+- (void)testQJSValue {
+    @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
+        QJSValue *globalValue = [context getGlobalValue];
+        QJSValue *newValue = [context newObjectValue];
+
+        [newValue setObject:@"abc" forKey:@"test"];
+        XCTAssert([[newValue.objValue valueForKey:@"test"] isEqual:@"abc"]);
+
+        [newValue setObject:@"abc" forKey:@"test2"];
+        XCTAssert([[newValue.objValue valueForKey:@"test2"] isEqual:@"abc"]);
+        [newValue removeObjectForKey:@"test2"];
+        XCTAssert([newValue.objValue valueForKey:@"test2"] == nil);
+
+        QJSValue *v = [newValue objectForKey:@"test2"];
+        XCTAssert([v isUndefined]);
+
+        [globalValue setObject:newValue forKey:@"newValue"];
+        [globalValue setObject:[newValue objectForKey:@"test"] forKey:@"test"];
+        XCTAssert([[globalValue.objValue valueForKey:@"test"] isEqual:@"abc"]);
+
+        [globalValue setObject:newValue forKey:@"test2"];
+        XCTAssert([[context eval:@"newValue.test = 'def';test2.test;"].objValue isEqual:@"def"]);
+    }
+    XCTAssert([QJSRuntime numberOfRuntimes] == 0);
 }
 
 - (void)testClasses {

@@ -13,6 +13,21 @@
 NS_ASSUME_NONNULL_BEGIN
 typedef struct JSMapState JSMapState;
 
+@interface QJSValue : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)new NS_UNAVAILABLE;
+
+- (id)objValue;
+
+- (QJSValue *)objectForKey:(id)key;
+- (void)setObject:(id)value forKey:(id)key;
+- (void)removeObjectForKey:(id)key;
+
+- (BOOL)isUndefined;
+
+@end
+
 @interface QJSContext : NSObject
 
 @property (nonatomic, assign) JSContext *ctx;
@@ -20,18 +35,12 @@ typedef struct JSMapState JSMapState;
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)new NS_UNAVAILABLE;
 
-- (id)eval:(NSString *)script;
-- (id)eval:(NSString *)script filename:(NSString *)filename;
-- (id)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags;
+- (QJSValue *)eval:(NSString *)script;
+- (QJSValue *)eval:(NSString *)script filename:(NSString *)filename;
+- (QJSValue *)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags;
 
-- (id)getGlobalKey:(id)key;
-- (void)setGlobalKey:(id)key value:(id)value;
-
-- (id)getObject:(JSValue)target key:(id)key;
-- (void)setObject:(JSValue)target key:(id)key value:(id)value;
-
-- (id)objectFromValue:(JSValue)value;
-- (JSValue)valueFromObject:(id)object;
+- (QJSValue *)getGlobalValue;
+- (QJSValue *)newObjectValue;
 
 @end
 

@@ -19,7 +19,7 @@ typedef struct JSRuntime JSRuntime;
 
 @property (nonatomic, assign) JSRuntime *rt;
 
-+ (instancetype)shared NS_UNAVAILABLE;
++ (instancetype)shared;
 
 + (NSUInteger)numberOfRuntimes;
 

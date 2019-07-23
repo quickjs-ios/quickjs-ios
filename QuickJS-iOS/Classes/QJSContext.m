@@ -19,6 +19,82 @@
 
 @property (nonatomic, strong) QJSRuntime *runtime;
 
+- (id)getObject:(JSValue)target key:(id)key;
++ (id)getObject:(JSValue)target key:(id)key context:(JSContext *)ctx;
+
+- (void)setObject:(JSValue)target key:(id)key value:(id)value;
++ (void)setObject:(JSValue)target key:(id)key value:(id)value context:(JSContext *)ctx;
++ (void)removeObject:(JSValue)target key:(id)key context:(JSContext *)ctx;
+
+- (id)objectFromValue:(JSValue)value;
++ (id)objectFromValue:(JSValue)value context:(JSContext *)ctx;
+
+- (JSValue)valueFromObject:(id)object;
++ (JSValue)valueFromObject:(id)object context:(JSContext *)ctx;
+
++ (QJSValue *)getValue:(QJSValue *)target key:(id)key context:(QJSContext *)context;
++ (void)setValue:(QJSValue *)target key:(id)key value:(id)value context:(QJSContext *)context;
++ (void)removeValue:(QJSValue *)target key:(id)key context:(QJSContext *)context;
+
+@end
+
+@interface QJSValue ()
+
+@property (nonatomic, assign) JSValue value;
+@property (nonatomic, strong) QJSContext *context;
+
+- (instancetype)initWithJSValue:(JSValue)value context:(QJSContext *)context;
+- (JSValue)dupValue;
+
+@end
+
+@implementation QJSValue
+
+- (instancetype)initWithJSValue:(JSValue)value context:(QJSContext *)context {
+    self = [super init];
+    if (self) {
+        self.value = value;
+        self.context = context;
+    }
+    return self;
+}
+
+- (void)dealloc {
+    JS_FreeValue(_context.ctx, _value);
+}
+
+- (JSValue)dupValue {
+    return JS_DupValue(_context.ctx, _value);
+}
+
+- (id)objValue {
+    return [QJSContext objectFromValue:_value context:_context.ctx];
+}
+
+- (QJSValue *)objectForKey:(id)key {
+    if (JS_IsObject(_value)) {
+        return [QJSContext getValue:self key:key context:_context];
+    } else {
+        return nil;
+    }
+}
+
+- (void)setObject:(id)value forKey:(id)key {
+    if (JS_IsObject(_value)) {
+        [QJSContext setValue:self key:key value:value context:_context];
+    }
+}
+
+- (void)removeObjectForKey:(id)key {
+    if (JS_IsObject(_value)) {
+        [QJSContext removeValue:self key:key context:_context];
+    }
+}
+
+- (BOOL)isUndefined {
+    return JS_IsUndefined(_value);
+}
+
 @end
 
 @implementation QJSContext
@@ -59,21 +135,24 @@ typedef struct {
 static void js_objc_finalizer(JSRuntime *rt, JSValue val) {
     NSObject *object = (__bridge_transfer NSObject *)JS_GetOpaque(val, js_objc_class_id);
     NSLog(@"object %@", object);
+    // object released.
 }
 
 static void js_objc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
     NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
     NSLog(@"object %@", object);
+}
 
-    //    if (th) {
-    //        JS_MarkValue(rt, th->func, mark_func);
-    //    }
+static JSValue js_objc_call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_val, int argc,
+                            JSValueConst *argv) {
+    return JS_UNDEFINED;
 }
 
 static JSClassDef js_objc_class = {
     "ObjcBridge",
     .finalizer = js_objc_finalizer,
     .gc_mark = js_objc_mark,
+    .call = js_objc_call,
 };
 
 + (void)initialize {
@@ -218,6 +297,10 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
                 returnObject = array;
             } else if (JS_IsObject(value)) {
+                returnObject = (__bridge NSObject *)JS_GetOpaque(value, js_objc_class_id);
+                if (returnObject) {
+                    break;
+                }
                 NSMutableDictionary *dic = @{}.mutableCopy;
                 JSMapState *s = JS_GetOpaque2(ctx, value, JS_CLASS_MAP_export);
                 if (!s) {
@@ -262,7 +345,9 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
 + (JSValue)valueFromObject:(id)object context:(JSContext *)ctx {
     JSValue objectVal = JS_NULL;
-    if ([object isKindOfClass:[NSString class]]) {
+    if ([object isKindOfClass:[QJSValue class]]) {
+        objectVal = ((QJSValue *)object).dupValue;
+    } else if ([object isKindOfClass:[NSString class]]) {
         objectVal = JS_NewString(ctx, ((NSString *)object).UTF8String);
     } else if ([object isKindOfClass:[NSNumber class]]) {
         NSNumber *numberObject = (NSNumber *)object;
@@ -319,25 +404,21 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
     return [QJSContext valueFromObject:object context:self.ctx];
 }
 
-- (id)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags {
+- (QJSValue *)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags {
     JSContext *ctx = self.ctx;
     JSValue ret = JS_Eval(ctx, script.UTF8String, strlen(script.UTF8String), filename.UTF8String, flags);
-    id retObject = nil;
     if (JS_IsException(ret)) {
         js_std_dump_error(ctx);
-    } else {
-        retObject = [self objectFromValue:ret];
     }
-    JS_FreeValue(ctx, ret);
 
-    return retObject;
+    return [[QJSValue alloc] initWithJSValue:ret context:self];
 }
 
-- (id)eval:(NSString *)script filename:(NSString *)filename {
+- (QJSValue *)eval:(NSString *)script filename:(NSString *)filename {
     return [self eval:script filename:filename flags:0];
 }
 
-- (id)eval:(NSString *)script {
+- (QJSValue *)eval:(NSString *)script {
     return [self eval:script filename:@""];
 }
 
@@ -351,45 +432,57 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
     }
 }
 
++ (void)removeObject:(JSValue)target key:(id)key context:(JSContext *)ctx {
+    if ([key isKindOfClass:[NSString class]]) {
+        JS_SetPropertyStr(ctx, target, ((NSString *)key).UTF8String, JS_UNDEFINED);
+    } else if ([key isKindOfClass:[NSNumber class]]) {
+        JS_SetPropertyInt64(ctx, target, ((NSNumber *)key).longLongValue, JS_UNDEFINED);
+    }
+}
+
 - (void)setObject:(JSValue)target key:(id)key value:(id)value {
     [QJSContext setObject:target key:key value:value context:self.ctx];
 }
 
++ (QJSValue *)getValue:(QJSValue *)target key:(id)key context:(QJSContext *)context {
+    if ([key isKindOfClass:[NSString class]]) {
+        JSValue value = JS_GetPropertyStr(context.ctx, target.value, ((NSString *)key).UTF8String);
+        return [[QJSValue alloc] initWithJSValue:value context:context];
+    }
+
+    return nil;
+}
+
+- (QJSValue *)getGlobalValue {
+    return [[QJSValue alloc] initWithJSValue:JS_GetGlobalObject(_ctx) context:self];
+}
+
 + (id)getObject:(JSValue)target key:(id)key context:(JSContext *)ctx {
-    JSValue globalObject = JS_GetGlobalObject(ctx);
     id returnObject = nil;
 
     if ([key isKindOfClass:[NSString class]]) {
-        JSValue value = JS_GetPropertyStr(ctx, globalObject, ((NSString *)key).UTF8String);
+        JSValue value = JS_GetPropertyStr(ctx, target, ((NSString *)key).UTF8String);
         returnObject = [QJSContext objectFromValue:value context:ctx];
         JS_FreeValue(ctx, value);
     }
 
-    JS_FreeValue(ctx, globalObject);
-
     return returnObject;
+}
+
++ (void)setValue:(QJSValue *)target key:(id)key value:(id)value context:(QJSContext *)context {
+    [QJSContext setObject:target.value key:key value:value context:context.ctx];
+}
+
++ (void)removeValue:(QJSValue *)target key:(id)key context:(QJSContext *)context {
+    [QJSContext removeObject:target.value key:key context:context.ctx];
 }
 
 - (id)getObject:(JSValue)target key:(id)key {
     return [QJSContext getObject:target key:key context:self.ctx];
 }
 
-- (id)getGlobalKey:(id)key {
-    JSContext *ctx = self.ctx;
-
-    JSValue globalObject = JS_GetGlobalObject(ctx);
-    id returnObject = [self getObject:globalObject key:key];
-    JS_FreeValue(ctx, globalObject);
-
-    return returnObject;
-}
-
-- (void)setGlobalKey:(id)key value:(id)value {
-    JSContext *ctx = self.ctx;
-
-    JSValue globalObject = JS_GetGlobalObject(ctx);
-    [self setObject:globalObject key:key value:value];
-    JS_FreeValue(ctx, globalObject);
+- (QJSValue *)newObjectValue {
+    return [[QJSValue alloc] initWithJSValue:JS_NewObject(_ctx) context:self];
 }
 
 @end
