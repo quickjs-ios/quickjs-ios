@@ -9,6 +9,9 @@
 
 #import "quickjs-libc.h"
 
+#import <objc/message.h>
+#import <objc/runtime.h>
+
 @interface QJSRuntime (Private)
 
 - (void)internalRemoveContext:(QJSContext *)context;
@@ -35,6 +38,15 @@
 + (QJSValue *)getValue:(QJSValue *)target key:(id)key context:(QJSContext *)context;
 + (void)setValue:(QJSValue *)target key:(id)key value:(id)value context:(QJSContext *)context;
 + (void)removeValue:(QJSValue *)target key:(id)key context:(QJSContext *)context;
+
+@end
+
+@interface QJSProxyObject : NSObject
+
+@property (nonatomic, strong) QJSValue *value;
+@property (nonatomic, strong) Protocol *protocol;
+
+- (instancetype)initWithProtocol:(Protocol *)protocol value:(QJSValue *)value;
 
 @end
 
@@ -93,6 +105,113 @@
 
 - (BOOL)isUndefined {
     return JS_IsUndefined(_value);
+}
+
+- (BOOL)isFunction {
+    return JS_IsFunction(_context.ctx, _value);
+}
+
+- (BOOL)isException {
+    return JS_IsException(_value);
+}
+
+- (QJSValue *)invoke:(NSObject *)arg, ... {
+    if (![self isFunction]) {
+        return nil;
+    }
+
+    NSMutableArray *args = [[NSMutableArray alloc] init];
+    [args addObject:arg];
+
+    va_list cols;
+    va_start(cols, arg);
+    while ((arg = va_arg(cols, NSObject *)) != nil) {
+        [args addObject:arg];
+    }
+    va_end(cols);
+
+    JSContext *ctx = _context.ctx;
+    JSValue *valueArgs = js_malloc(ctx, args.count * sizeof(JSValue));
+    for (int i = 0; i < args.count; i++) {
+        valueArgs[i] = [QJSContext valueFromObject:[args objectAtIndex:i] context:ctx];
+    }
+
+    JSValue func = JS_DupValue(ctx, _value);
+    JSValue ret = JS_Call(ctx, func, JS_UNDEFINED, (int)args.count, valueArgs);
+    JS_FreeValue(ctx, func);
+    js_free(ctx, valueArgs);
+
+    return [[QJSValue alloc] initWithJSValue:ret context:_context];
+}
+
+- (id)asProtocol:(Protocol *)protocol {
+    if (!JS_IsObject(_value)) {
+        @throw [NSException exceptionWithName:@"QJSError"
+                                       reason:[NSString stringWithFormat:@"not object!"]
+                                     userInfo:nil];
+    }
+    return [[QJSProxyObject alloc] initWithProtocol:protocol value:self];
+}
+
+@end
+
+@implementation QJSProxyObject
+
+- (instancetype)initWithProtocol:(Protocol *)protocol value:(QJSValue *)value {
+    self = [super init];
+    if (self) {
+        self.protocol = protocol;
+        self.value = value;
+    }
+    return self;
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    struct objc_method_description md = protocol_getMethodDescription(_protocol, sel, YES, YES);
+    if (md.types != NULL) {
+        return [NSMethodSignature signatureWithObjCTypes:md.types];
+    }
+    return nil;
+}
+
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    SEL sel = [invocation selector];
+    if (sel != nil) {
+        NSString *selStr = NSStringFromSelector(sel);
+        while ([selStr length] > 0 && [selStr characterAtIndex:[selStr length] - 1] == ':') {
+            selStr = [selStr substringToIndex:[selStr length] - 1];
+        }
+        // selector is convert from func:arg1:arg2::: to func_arg1_arg2 in javascript.
+        selStr = [selStr stringByReplacingOccurrencesOfString:@":" withString:@"_"];
+
+        QJSValue *funcValue = [_value objectForKey:selStr];
+        if (!funcValue) {
+            @throw [NSException exceptionWithName:@"QJSError"
+                                           reason:[NSString stringWithFormat:@"method (%@) not found!", selStr]
+                                         userInfo:nil];
+        }
+
+        NSMethodSignature *ms = [invocation methodSignature];
+        JSContext *ctx = _value.context.ctx;
+        JSValue *valueArgs = js_malloc(ctx, ([ms numberOfArguments] - 2) * sizeof(JSValue));
+        for (int i = 2; i < [ms numberOfArguments]; i++) {
+            void *argValue = nil;
+            [invocation getArgument:&argValue atIndex:i];
+            if (argValue) {
+                valueArgs[i - 2] = [QJSContext valueFromObject:(__bridge id)argValue context:ctx];
+            } else {
+                valueArgs[i - 2] = JS_NULL;
+            }
+        }
+        JSValue ret = JS_Call(ctx, funcValue.value, JS_UNDEFINED, (int)[ms numberOfArguments] - 2, valueArgs);
+
+        if (*[ms methodReturnType] == '@') {
+            void *retValue = (__bridge void *)[QJSContext objectFromValue:ret context:ctx];
+            [invocation setReturnValue:&retValue];
+        }
+
+        js_free(ctx, valueArgs);
+    }
 }
 
 @end
@@ -167,7 +286,6 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst val, int argc, JSValu
     NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
     if (!object)
         return JS_EXCEPTION;
-    NSLog(@"object %@", @NO);
 
     NSString *method = [QJSContext objectFromValue:argv[0] context:ctx];
 

@@ -25,6 +25,12 @@ typedef struct JSMapState JSMapState;
 - (void)removeObjectForKey:(id)key;
 
 - (BOOL)isUndefined;
+- (BOOL)isException;
+- (BOOL)isFunction;
+
+- (QJSValue *)invoke:(NSObject *)arg, ...;
+
+- (id)asProtocol:(Protocol *)protocol;
 
 @end
 

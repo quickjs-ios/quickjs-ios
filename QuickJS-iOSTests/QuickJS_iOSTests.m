@@ -30,6 +30,12 @@
 
 @end
 
+@protocol TestProtocol<NSObject>
+
+- (id)javascriptAddFunc:(id)arg1:(id)arg2:(id)arg3;
+
+@end
+
 @implementation QuickJS_iOSTests
 
 - (void)setUp {
@@ -169,6 +175,19 @@
         QJSRuntime *runtime = [[QJSRuntime alloc] init];
         QJSContext *context = [runtime newContext];
         QJSValue *globalValue = [context getGlobalValue];
+
+        QJSValue *funcValue = [context eval:@"a = function(...args){console.log(...args);return args;};a;"];
+        if ([funcValue isFunction]) {
+            QJSValue *ret = [funcValue invoke:@"1", @2, @YES, @"end", nil];
+            NSArray *array = @[@"1", @2, @YES, @"end"];
+            XCTAssert([ret.objValue isEqual:array]);
+        }
+        funcValue = [context eval:@"a = function(a, b){return a * 10 + b;}; a;"];
+        if ([funcValue isFunction]) {
+            QJSValue *ret = [funcValue invoke:@(2), @(3), nil];
+            XCTAssert([ret.objValue isEqual:@(2 * 10 + 3)]);
+        }
+
         QJSValue *newValue = [context newObjectValue];
 
         [newValue setObject:@"abc" forKey:@"test"];
@@ -192,13 +211,17 @@
     XCTAssert([QJSRuntime numberOfRuntimes] == 0);
 }
 
-- (void)testClasses {
-    NSLog(@"%@", @YES.class);
-    NSLog(@"%@", [NSNumber numberWithInteger:1].class);
-    NSLog(@"%@", @(1.1).class);
-
-    CFNumberType numberType = CFNumberGetType((CFNumberRef) @YES);
-    NSLog(@"%d", numberType);
+- (void)testQJSValueInterface {
+    @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
+        QJSValue *destObject =
+            [context eval:@"var a = {javascriptAddFunc: function(a, b, c){console.log(c);return a * 10 + b;}}; a;"];
+        id<TestProtocol> obj = [destObject asProtocol:@protocol(TestProtocol)];
+        id retValue = [obj javascriptAddFunc:@(1):@(2):nil];
+        XCTAssert([retValue isEqual:@(12)]);
+    }
+    XCTAssert([QJSRuntime numberOfRuntimes] == 0);
 }
 
 //- (void)testPerformanceExample {
