@@ -6,7 +6,7 @@
 //  Copyright © 2019 Sam Chang. All rights reserved.
 //
 
-#import <QuickJS-iOS/QuickJS_iOS.h>
+#import <QuickJS-iOS/QuickJS-iOS.h>
 #import <XCTest/XCTest.h>
 
 @interface QuickJS_iOSTests : XCTestCase

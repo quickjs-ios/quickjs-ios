@@ -19,7 +19,12 @@ $ xcodegen
 ``` 
 open the project, select simulator as the target, then press Command+U to run the tests.
 
-## API Usage
+## Intergrate your project with cocoapods
+
+1. add pod dependency `pod 'QuickJS-iOS'`
+2. add header import `#import <QuickJS-iOS/QuickJS-iOS.h>`
+
+## Samples
 
 Object for inject to javascript
 
