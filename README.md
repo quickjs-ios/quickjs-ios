@@ -17,7 +17,7 @@ $ brew install xcodegen
 $ cd project-dir
 $ xcodegen
 ``` 
-open the project and press Command+U to run the tests.
+open the project, select simulator as the target, then press Command+U to run the tests.
 
 ## API Usage
 
