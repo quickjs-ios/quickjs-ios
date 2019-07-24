@@ -9,7 +9,7 @@ targets:
   QuickJS-iOS:
     type: library.static
     platform: iOS
-    deploymentTarget: "8.0"
+    deploymentTarget: "10.0"
     scheme:
       testTargets:
         - QuickJS-iOSTests
@@ -29,7 +29,7 @@ targets:
     settings:
       INFOPLIST_FILE: QuickJS-iOS/Info.plist
       GCC_PREFIX_HEADER: QuickJS-iOS/PrefixHeader.pch
-      OTHER_CFLAGS: $(inherited) -DCONFIG_VERSION=\"2019-07-09\"
+      OTHER_CFLAGS: $(inherited) -DCONFIG_VERSION=\"2019-07-21\"
       ENABLE_BITCODE: YES
       TARGETED_DEVICE_FAMILY: 1
       PRODUCT_BUNDLE_IDENTIFIER: com.luafan.QuickJS-iOS

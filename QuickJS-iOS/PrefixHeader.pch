@@ -5,9 +5,6 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 #else
-#include <string.h>
-
-#include "quickjs-libc.h"
 
 #endif
 

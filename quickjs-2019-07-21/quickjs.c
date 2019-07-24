@@ -47865,6 +47865,7 @@ void JS_AddIntrinsicTypedArrays(JSContext *ctx)
 #pragma mark QJSExport
 
 int QJS_CLASS_MAP = JS_CLASS_MAP;
+int QJS_ATOM_next = JS_ATOM_next;
 
 JSValue QJS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async) {
     return JS_GetIterator(ctx, obj, is_async);

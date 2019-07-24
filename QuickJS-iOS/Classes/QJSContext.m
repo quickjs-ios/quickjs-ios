@@ -236,14 +236,6 @@ JSValue qjs_proxy_constructor(JSContext *ctx, JSValueConst this_val, int argc, J
 
 JSValue qjs_proxy_target(JSContext *ctx, JSValue proxy);
 
-enum {
-    JS_ATOM_NULL,
-#define DEF(name, str) JS_ATOM_##name,
-#include "quickjs-atom.h"
-#undef DEF
-    JS_ATOM_END,
-};
-
 #define JS_GPN_SYMBOL_MASK (1 << 0)
 #define JS_GPN_STRING_MASK (1 << 1)
 /* only include the enumerable properties */
@@ -252,6 +244,7 @@ enum {
 #define JS_GPN_SET_ENUM (1 << 3)
 
 extern int QJS_CLASS_MAP;
+extern int QJS_ATOM_next;
 
 #pragma mark OBJC_CLASS
 
@@ -317,10 +310,6 @@ static JSClassDef js_objc_class = {
     .call = js_objc_call,
 };
 
-static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSValueConst *argv) {
-    return JS_NewCFunctionData(ctx, &js_objc_invoke, 0, 0, argc, argv);
-}
-
 static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, int magic,
                               JSValue *func_data) {
     JSValue target = func_data[0];
@@ -362,6 +351,10 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, J
     }
 
     return JS_UNDEFINED;
+}
+
+static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSValueConst *argv) {
+    return JS_NewCFunctionData(ctx, &js_objc_invoke, 0, 0, argc, argv);
 }
 
 #pragma mark QJSCONTEXT
@@ -432,7 +425,7 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, J
                     return nil;
                 }
 
-                sp[1] = JS_GetProperty(ctx, sp[0], JS_ATOM_next);
+                sp[1] = JS_GetProperty(ctx, sp[0], QJS_ATOM_next);
 
                 if (JS_IsException(sp[1])) {
                     js_std_dump_error(ctx);
