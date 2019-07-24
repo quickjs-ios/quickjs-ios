@@ -13,11 +13,16 @@
 NS_ASSUME_NONNULL_BEGIN
 typedef struct JSMapState JSMapState;
 
-typedef id (^dispatch_block_t_0)(void);
-typedef id (^dispatch_block_t_1)(id);
-typedef id (^dispatch_block_t_2)(id, id);
-typedef id (^dispatch_block_t_3)(id, id, id);
-typedef id (^dispatch_block_t_4)(id, id, id, id);
+typedef _Nullable id (^dispatch_block_t_0)(void);
+typedef _Nullable id (^dispatch_block_t_1)(id);
+typedef _Nullable id (^dispatch_block_t_2)(id, id);
+typedef _Nullable id (^dispatch_block_t_3)(id, id, id);
+typedef _Nullable id (^dispatch_block_t_4)(id, id, id, id);
+
+typedef struct {
+    NSString *exception;
+    NSString *stack;
+} QJSException;
 
 @interface QJSValue : NSObject
 
@@ -50,6 +55,8 @@ typedef id (^dispatch_block_t_4)(id, id, id, id);
 - (QJSValue *)eval:(NSString *)script;
 - (QJSValue *)eval:(NSString *)script filename:(NSString *)filename;
 - (QJSValue *)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags;
+
+- (QJSException)popException;
 
 - (QJSValue *)getGlobalValue;
 - (QJSValue *)newObjectValue;

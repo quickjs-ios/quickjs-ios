@@ -223,12 +223,18 @@ static JSClassID js_objc_class_id;
 static Class boolClass;
 static Class blockClass;
 
-JSValue JS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async);
-JSValue JS_IteratorNext(JSContext *ctx, JSValueConst enum_obj, JSValueConst method, int argc, JSValueConst *argv,
-                        BOOL *pdone);
-int JS_IteratorClose(JSContext *ctx, JSValueConst enum_obj, BOOL is_exception_pending);
+#pragma mark QUICKJS_IMPORT
 
-int JS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab, uint32_t *plen, JSObject *p, int flags);
+JSValue QJS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async);
+JSValue QJS_IteratorNext(JSContext *ctx, JSValueConst enum_obj, JSValueConst method, int argc, JSValueConst *argv,
+                         BOOL *pdone);
+int QJS_IteratorClose(JSContext *ctx, JSValueConst enum_obj, BOOL is_exception_pending);
+
+int QJS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab, uint32_t *plen, JSObject *p, int flags);
+
+JSValue qjs_proxy_constructor(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
+
+JSValue qjs_proxy_target(JSContext *ctx, JSValue proxy);
 
 enum {
     JS_ATOM_NULL,
@@ -245,11 +251,9 @@ enum {
 /* set theJSPropertyEnum.is_enumerable field */
 #define JS_GPN_SET_ENUM (1 << 3)
 
-extern int JS_CLASS_MAP_export;
+extern int QJS_CLASS_MAP;
 
-typedef struct {
-    id value;
-} id_wrap;
+#pragma mark OBJC_CLASS
 
 static void js_objc_finalizer(JSRuntime *rt, JSValue val) {
     NSObject *object = (__bridge_transfer NSObject *)JS_GetOpaque(val, js_objc_class_id);
@@ -299,6 +303,9 @@ static JSValue js_objc_call(JSContext *ctx, JSValueConst func_obj, JSValueConst 
         if (retObject) {
             return [QJSContext valueFromObject:retObject context:ctx];
         }
+    } else {
+        JS_ThrowTypeError(ctx, "call for objc-block only!");
+        return JS_EXCEPTION;
     }
     return JS_UNDEFINED;
 }
@@ -310,22 +317,19 @@ static JSClassDef js_objc_class = {
     .call = js_objc_call,
 };
 
-+ (void)initialize {
-    if (self == [QJSContext class]) {
-        JS_NewClassID(&js_objc_class_id);
-        boolClass = @YES.class;
-        blockClass = NSClassFromString(@"NSBlock");
-    }
+static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSValueConst *argv) {
+    return JS_NewCFunctionData(ctx, &js_objc_invoke, 0, 0, argc, argv);
 }
 
-static JSValue js_objc_invoke(JSContext *ctx, JSValueConst val, int argc, JSValueConst *argv) {
-    NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
-    if (!object)
-        return JS_EXCEPTION;
+static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, int magic,
+                              JSValue *func_data) {
+    JSValue target = func_data[0];
+    JSValue name = func_data[1];
 
-    NSString *method = [QJSContext objectFromValue:argv[0] context:ctx];
+    NSObject *object = [QJSContext objectFromValue:target context:ctx];
+    NSString *method = [QJSContext objectFromValue:name context:ctx];
 
-    NSInteger toFillCount = argc - 1;
+    NSInteger toFillCount = argc;
     while (toFillCount-- > 0) {
         method = [method stringByAppendingString:@":"];
     }
@@ -341,9 +345,9 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst val, int argc, JSValu
     [invocation setSelector:selector];
     [invocation setTarget:object];
 
-    for (int i = 1; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
         NSObject *arg = [QJSContext objectFromValue:argv[i] context:ctx];
-        [invocation setArgument:&arg atIndex:2 + i - 1];
+        [invocation setArgument:&arg atIndex:2 + i];
     }
 
     [invocation invoke];
@@ -360,7 +364,15 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst val, int argc, JSValu
     return JS_UNDEFINED;
 }
 
-static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke", 0, js_objc_invoke)};
+#pragma mark QJSCONTEXT
+
++ (void)initialize {
+    if (self == [QJSContext class]) {
+        JS_NewClassID(&js_objc_class_id);
+        boolClass = @YES.class;
+        blockClass = NSClassFromString(@"NSBlock");
+    }
+}
 
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -374,7 +386,6 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
         JSContext *ctx = self.ctx;
         JSValue proto = JS_NewObject(ctx);
-        JS_SetPropertyFunctionList(ctx, proto, js_objc_proto_funcs, countof(js_objc_proto_funcs));
         JS_SetClassProto(ctx, js_objc_class_id, proto);
     }
     return self;
@@ -389,6 +400,7 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
     id returnObject = nil;
     int tag = JS_VALUE_GET_TAG(value);
     switch (tag) {
+        case JS_TAG_EXCEPTION:
         case JS_TAG_STRING: {
             const char *str = JS_ToCString(ctx, value);
             returnObject = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
@@ -413,7 +425,7 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
             if (JS_IsArray(ctx, value)) {
                 NSMutableArray *array = @[].mutableCopy;
                 JSValue sp[2] = {0};
-                sp[0] = JS_GetIterator(ctx, value, 0);
+                sp[0] = QJS_GetIterator(ctx, value, 0);
                 if (JS_IsException(sp[0])) {
                     js_std_dump_error(ctx);
                     JS_FreeValue(ctx, sp[0]);
@@ -424,13 +436,14 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
                 if (JS_IsException(sp[1])) {
                     js_std_dump_error(ctx);
-                    JS_FreeValue(ctx, sp[0]);
-                    return nil;
+                    goto exception;
                 }
+
+                returnObject = array;
 
                 for (;;) {
                     BOOL done;
-                    JSValue value = JS_IteratorNext(ctx, sp[0], sp[1], 0, NULL, &done);
+                    JSValue value = QJS_IteratorNext(ctx, sp[0], sp[1], 0, NULL, &done);
                     if (JS_IsException(value))
                         goto exception;
                     if (done) {
@@ -443,27 +456,34 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
             exception:
                 if (JS_IsObject(sp[0])) {
-                    JS_IteratorClose(ctx, sp[0], TRUE);
+                    QJS_IteratorClose(ctx, sp[0], TRUE);
                 }
 
                 JS_FreeValue(ctx, sp[1]);
                 JS_FreeValue(ctx, sp[0]);
-
-                returnObject = array;
             } else if (JS_IsObject(value)) {
-                returnObject = (__bridge NSObject *)JS_GetOpaque(value, js_objc_class_id);
-                if (returnObject) {
-                    break;
+                JSValue target = qjs_proxy_target(ctx, value);
+
+                if (!JS_IsUndefined(target)) {
+                    returnObject = (__bridge NSObject *)JS_GetOpaque(target, js_objc_class_id);
+                    if (returnObject) {
+                        break;
+                    }
+                } else {
+                    returnObject = (__bridge NSObject *)JS_GetOpaque(value, js_objc_class_id);
+                    if (returnObject) {
+                        break;
+                    }
                 }
                 NSMutableDictionary *dic = @{}.mutableCopy;
-                JSMapState *s = JS_GetOpaque2(ctx, value, JS_CLASS_MAP_export);
+                JSMapState *s = JS_GetOpaque2(ctx, value, QJS_CLASS_MAP);
                 if (!s) {
                     JSPropertyEnum *tab_atom;
                     uint32_t tab_atom_count;
                     JSObject *p = JS_VALUE_GET_OBJ(value);
 
-                    if (JS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, p,
-                                               JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
+                    if (QJS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, p,
+                                                JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
                         break;
 
                     for (int i = 0; i < tab_atom_count; i++) {
@@ -547,6 +567,18 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
             return objectVal;
 
         JS_SetOpaque(objectVal, (__bridge_retained void *)object);
+
+        JSValue handler = JS_NewObject(ctx);
+        JSValue getFunc = JS_NewCFunction(ctx, &js_objc_proxy_get, "get", 2);
+        JS_SetPropertyStr(ctx, handler, "get", getFunc);
+
+        JSValue argv[2] = {objectVal, handler};
+        JSValue proxy = qjs_proxy_constructor(ctx, JS_UNDEFINED, 2, argv);
+
+        JS_FreeValue(ctx, objectVal);
+        JS_FreeValue(ctx, handler);
+
+        objectVal = proxy;
     }
 
     return objectVal;
@@ -559,10 +591,6 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 - (QJSValue *)eval:(NSString *)script filename:(NSString *)filename flags:(int)flags {
     JSContext *ctx = self.ctx;
     JSValue ret = JS_Eval(ctx, script.UTF8String, strlen(script.UTF8String), filename.UTF8String, flags);
-    if (JS_IsException(ret)) {
-        js_std_dump_error(ctx);
-    }
-
     return [[QJSValue alloc] initWithJSValue:ret context:self];
 }
 
@@ -572,6 +600,21 @@ static const JSCFunctionListEntry js_objc_proto_funcs[] = {JS_CFUNC_DEF("invoke"
 
 - (QJSValue *)eval:(NSString *)script {
     return [self eval:script filename:@""];
+}
+
+- (QJSException)popException {
+    JSContext *ctx = self.ctx;
+
+    QJSException e = {0};
+    JSValue exception = JS_GetException(ctx);
+    const char *str = JS_ToCString(ctx, exception);
+    e.exception = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
+    JS_FreeCString(ctx, str);
+    JSValue stack = JS_GetPropertyStr(ctx, exception, "stack");
+    e.stack = [[QJSValue alloc] initWithJSValue:stack context:self].objValue;
+    JS_FreeValue(ctx, exception);
+    //    JSValue stack = JS_GetPropertyStr(_context.ctx, exception, "stack");
+    return e;
 }
 
 + (void)setObject:(JSValue)target key:(id)key value:(id)value context:(JSContext *)ctx {

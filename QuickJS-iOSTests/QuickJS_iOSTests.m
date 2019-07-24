@@ -106,16 +106,15 @@
         obj2 = nil;
         obj = nil;
 
-        NSDictionary *ret = [context eval:@"testval(123);testval.invoke('test', 1, 'a', false);"].objValue;
-        NSLog(@"%@", ret);
+        NSArray *ret = [context eval:@"testval.test(1, 'a', false);"].objValue;
+        NSArray *array = @[@"a", @NO, @(123)];
+        XCTAssert([ret isEqual:array]);
 
-        // TODO: add this support in native.
-        [context
-            eval:@"testval = Proxy.revocable(testval, {get: function(target, name){return function(...args){return "
-                 @"target.invoke(name, ...args)}}}).proxy;"];
+        QJSValue *result = [context eval:@"testval(123);"];
+        XCTAssert([result isException]);
 
-        ret = [context eval:@"testval.test('a', 3, true);"].objValue;
-        NSLog(@"%@", ret);
+        QJSException e = [context popException];
+        XCTAssert([e.exception isEqualToString:@"TypeError: call for objc-block only!"]);
     }
 
     context = nil;

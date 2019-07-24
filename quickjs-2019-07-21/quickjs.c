@@ -494,8 +494,6 @@ typedef enum JSIteratorKindEnum {
     JS_ITERATOR_KIND_KEY_AND_VALUE,
 } JSIteratorKindEnum;
 
-int JS_CLASS_MAP_export = JS_CLASS_MAP;
-
 typedef struct JSForInIterator {
     JSValue obj;
     BOOL is_array;
@@ -752,7 +750,6 @@ enum {
 #undef DEF
     JS_ATOM_END,
 };
-
 #define JS_ATOM_LAST_KEYWORD JS_ATOM_super
 #define JS_ATOM_LAST_STRICT_KEYWORD JS_ATOM_yield
 
@@ -6463,7 +6460,7 @@ static void js_free_prop_enum(JSContext *ctx, JSPropertyEnum *tab, uint32_t len)
 /* set theJSPropertyEnum.is_enumerable field */
 #define JS_GPN_SET_ENUM     (1 << 3)
 
-int __exception JS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab,
+static int __exception JS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab,
                                               uint32_t *plen,
                                               JSObject *p, int flags)
 {
@@ -13428,7 +13425,7 @@ static JSValue JS_GetIterator2(JSContext *ctx, JSValueConst obj,
     return enum_obj;
 }
 
-JSValue JS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async)
+static JSValue JS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async)
 {
     JSValue method, ret, sync_iter;
 
@@ -13503,7 +13500,7 @@ static JSValue JS_IteratorNext2(JSContext *ctx, JSValueConst enum_obj,
     return JS_EXCEPTION;
 }
 
-JSValue JS_IteratorNext(JSContext *ctx, JSValueConst enum_obj,
+static JSValue JS_IteratorNext(JSContext *ctx, JSValueConst enum_obj,
                                JSValueConst method,
                                int argc, JSValueConst *argv, BOOL *pdone)
 {
@@ -13535,7 +13532,7 @@ JSValue JS_IteratorNext(JSContext *ctx, JSValueConst enum_obj,
 }
 
 /* return < 0 in case of exception */
-int JS_IteratorClose(JSContext *ctx, JSValueConst enum_obj,
+static int JS_IteratorClose(JSContext *ctx, JSValueConst enum_obj,
                             BOOL is_exception_pending)
 {
     JSValue method, ret, ex_obj;
@@ -47863,4 +47860,40 @@ void JS_AddIntrinsicTypedArrays(JSContext *ctx)
 #ifdef CONFIG_ATOMICS
     JS_AddIntrinsicAtomics(ctx);
 #endif
+}
+
+#pragma mark QJSExport
+
+int QJS_CLASS_MAP = JS_CLASS_MAP;
+
+JSValue QJS_GetIterator(JSContext *ctx, JSValueConst obj, BOOL is_async) {
+    return JS_GetIterator(ctx, obj, is_async);
+}
+
+JSValue QJS_IteratorNext(JSContext *ctx, JSValueConst enum_obj, JSValueConst method, int argc, JSValueConst *argv,
+                        BOOL *pdone){
+    return JS_IteratorNext(ctx, enum_obj, method, argc, argv, pdone);
+}
+
+int QJS_IteratorClose(JSContext *ctx, JSValueConst enum_obj, BOOL is_exception_pending) {
+    return JS_IteratorClose(ctx, enum_obj, is_exception_pending);
+}
+
+int QJS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab, uint32_t *plen, JSObject *p, int flags) {
+    return JS_GetOwnPropertyNames(ctx, ptab, plen, p, flags);
+}
+
+JSValue qjs_proxy_constructor(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv) {
+    return js_proxy_constructor(ctx, this_val, argc, argv);
+}
+
+JSValue qjs_proxy_target(JSContext *ctx, JSValue proxy) {
+    JSProxyData *s = JS_GetOpaque(proxy, JS_CLASS_PROXY);
+    if (s) {
+        return s->target;
+    }
+    
+    return JS_UNDEFINED;
+
 }
