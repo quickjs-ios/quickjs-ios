@@ -14,6 +14,7 @@
 
 @interface QJSRuntime (Private)
 
++ (QJSContext *)contextForJSContext:(JSContext *)ctx;
 - (void)internalRemoveContext:(QJSContext *)context;
 
 @end
@@ -21,6 +22,8 @@
 @interface QJSContext ()
 
 @property (nonatomic, strong) QJSRuntime *runtime;
+@property (nonatomic, strong) NSMapTable<NSNumber *, id> *valueObjectMap;
+@property (nonatomic, strong) dispatch_source_t timer;
 
 - (id)getObject:(JSValue)target key:(id)key;
 + (id)getObject:(JSValue)target key:(id)key context:(JSContext *)ctx;
@@ -39,6 +42,8 @@
 + (void)setValue:(QJSValue *)target key:(id)key value:(id)value context:(QJSContext *)context;
 + (void)removeValue:(QJSValue *)target key:(id)key context:(QJSContext *)context;
 
+- (void)removeCache:(NSNumber *)key;
+
 @end
 
 @interface QJSProxyObject : NSObject
@@ -55,7 +60,6 @@
 @property (nonatomic, assign) JSValue value;
 @property (nonatomic, strong) QJSContext *context;
 
-- (instancetype)initWithJSValue:(JSValue)value context:(QJSContext *)context;
 - (JSValue)dupValue;
 
 @end
@@ -71,7 +75,12 @@
     return self;
 }
 
++ (instancetype)valueWithJSValue:(JSValue)value context:(QJSContext *)context {
+    return [[QJSValue alloc] initWithJSValue:value context:context];
+}
+
 - (void)dealloc {
+    [self.context removeCache:@((uint64_t)JS_VALUE_GET_PTR(_value))];
     JS_FreeValue(_context.ctx, _value);
 }
 
@@ -121,7 +130,9 @@
     }
 
     NSMutableArray *args = [[NSMutableArray alloc] init];
-    [args addObject:arg];
+    if (arg) {
+        [args addObject:arg];
+    }
 
     va_list cols;
     va_start(cols, arg);
@@ -139,6 +150,9 @@
     JSValue func = JS_DupValue(ctx, _value);
     JSValue ret = JS_Call(ctx, func, JS_UNDEFINED, (int)args.count, valueArgs);
     JS_FreeValue(ctx, func);
+    for (int i = 0; i < args.count; i++) {
+        JS_FreeValue(ctx, valueArgs[i]);
+    }
     js_free(ctx, valueArgs);
 
     return [[QJSValue alloc] initWithJSValue:ret context:_context];
@@ -256,12 +270,12 @@ static void js_objc_finalizer(JSRuntime *rt, JSValue val) {
 #endif
 }
 
-static void js_objc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
-    NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
-#ifdef DEBUG
-    NSLog(@"js_objc_mark %@", object);
-#endif
-}
+// static void js_objc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
+//    NSObject *object = (__bridge NSObject *)JS_GetOpaque(val, js_objc_class_id);
+//#ifdef DEBUG
+//    NSLog(@"js_objc_mark %@", object);
+//#endif
+//}
 
 static JSValue js_objc_call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_val, int argc,
                             JSValueConst *argv) {
@@ -306,7 +320,7 @@ static JSValue js_objc_call(JSContext *ctx, JSValueConst func_obj, JSValueConst 
 static JSClassDef js_objc_class = {
     "ObjcBridge",
     .finalizer = js_objc_finalizer,
-    .gc_mark = js_objc_mark,
+    //    .gc_mark = js_objc_mark,
     .call = js_objc_call,
 };
 
@@ -354,6 +368,20 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, J
 }
 
 static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSValueConst *argv) {
+    JSValue target = argv[0];
+    JSValue name = argv[1];
+
+    NSObject *object = [QJSContext objectFromValue:target context:ctx];
+    NSString *method = [QJSContext objectFromValue:name context:ctx];
+
+    if ([object conformsToProtocol:@protocol(QJSValueObject)]) {
+        id<QJSValueObject> obj = (id<QJSValueObject>)object;
+        NSDictionary *dic = [obj objectMap];
+        if (dic[method]) {
+            return [QJSContext valueFromObject:dic[method] context:ctx];
+        }
+    }
+
     return JS_NewCFunctionData(ctx, &js_objc_invoke, 0, 0, argc, argv);
 }
 
@@ -367,11 +395,25 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
     }
 }
 
+- (void)flushCache {
+    [self.valueObjectMap removeAllObjects];
+}
+
+- (NSUInteger)cacheSize {
+    return [self.valueObjectMap count];
+}
+
+- (void)removeCache:(NSNumber *)key {
+    [self.valueObjectMap removeObjectForKey:key];
+}
+
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
 - (instancetype)initWithRuntime:(QJSRuntime *)runtime {
     self = [super init];
     if (self) {
+        self.valueObjectMap = [NSMapTable strongToWeakObjectsMapTable];
+
         self.runtime = runtime;
         self.ctx = JS_NewContext(runtime.rt);
 
@@ -396,7 +438,9 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
         case JS_TAG_EXCEPTION:
         case JS_TAG_STRING: {
             const char *str = JS_ToCString(ctx, value);
-            returnObject = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
+            if (str) {
+                returnObject = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
+            }
             JS_FreeCString(ctx, str);
         } break;
         case JS_TAG_BOOL:
@@ -415,6 +459,15 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
             }
         } break;
         case JS_TAG_OBJECT: {
+            void *ptr = JS_VALUE_GET_PTR(value);
+            NSNumber *cacheKey = @((uint64_t)ptr);
+            QJSContext *context = [QJSRuntime contextForJSContext:ctx];
+            id cacheObject = [context.valueObjectMap objectForKey:cacheKey];
+            if (cacheObject) {
+                returnObject = cacheObject;
+                break;
+            }
+
             if (JS_IsArray(ctx, value)) {
                 NSMutableArray *array = @[].mutableCopy;
                 JSValue sp[2] = {0};
@@ -433,6 +486,7 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
                 }
 
                 returnObject = array;
+                [context.valueObjectMap setObject:returnObject forKey:cacheKey];
 
                 for (;;) {
                     BOOL done;
@@ -469,34 +523,33 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
                     }
                 }
                 NSMutableDictionary *dic = @{}.mutableCopy;
-                JSMapState *s = JS_GetOpaque2(ctx, value, QJS_CLASS_MAP);
-                if (!s) {
-                    JSPropertyEnum *tab_atom;
-                    uint32_t tab_atom_count;
-                    JSObject *p = JS_VALUE_GET_OBJ(value);
+                returnObject = dic;
+                [context.valueObjectMap setObject:returnObject forKey:cacheKey];
 
-                    if (QJS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, p,
-                                                JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
+                JSPropertyEnum *tab_atom;
+                uint32_t tab_atom_count;
+                JSObject *p = JS_VALUE_GET_OBJ(value);
+
+                if (QJS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, p,
+                                            JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
+                    break;
+
+                for (int i = 0; i < tab_atom_count; i++) {
+                    JSAtom atom = tab_atom[i].atom;
+                    JSValue val = JS_GetProperty(ctx, value, atom);
+                    if (JS_IsException(val))
                         break;
-
-                    for (int i = 0; i < tab_atom_count; i++) {
-                        JSAtom atom = tab_atom[i].atom;
-                        JSValue val = JS_GetProperty(ctx, value, atom);
-                        if (JS_IsException(val))
-                            break;
-                        JSValue key = JS_AtomToValue(ctx, atom);
-                        dic[[QJSContext objectFromValue:key context:ctx]] = [QJSContext objectFromValue:val
-                                                                                                context:ctx];
-                        JS_FreeValue(ctx, key);
-                        JS_FreeValue(ctx, val);
-                    }
-
-                    for (int i = 0; i < tab_atom_count; i++)
-                        JS_FreeAtom(ctx, tab_atom[i].atom);
-                    js_free(ctx, tab_atom);
+                    JSValue key = JS_AtomToValue(ctx, atom);
+                    id keyObject = [QJSContext objectFromValue:key context:ctx];
+                    id valueObject = [QJSContext objectFromValue:val context:ctx];
+                    dic[keyObject] = valueObject;
+                    JS_FreeValue(ctx, key);
+                    JS_FreeValue(ctx, val);
                 }
 
-                returnObject = dic;
+                for (int i = 0; i < tab_atom_count; i++)
+                    JS_FreeAtom(ctx, tab_atom[i].atom);
+                js_free(ctx, tab_atom);
             }
         } break;
         default:
@@ -601,7 +654,9 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
     QJSException e = {0};
     JSValue exception = JS_GetException(ctx);
     const char *str = JS_ToCString(ctx, exception);
-    e.exception = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
+    if (str) {
+        e.exception = [NSString stringWithCString:str encoding:NSUTF8StringEncoding];
+    }
     JS_FreeCString(ctx, str);
     JSValue stack = JS_GetPropertyStr(ctx, exception, "stack");
     e.stack = [[QJSValue alloc] initWithJSValue:stack context:self].objValue;
@@ -618,6 +673,9 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
     } else if ([key isKindOfClass:[NSNumber class]]) {
         JS_SetPropertyInt64(ctx, target, ((NSNumber *)key).longLongValue, valueVal);
     }
+
+    QJSContext *context = [QJSRuntime contextForJSContext:ctx];
+    [context.valueObjectMap removeObjectForKey:@((uint64_t)JS_VALUE_GET_PTR(target))];
 }
 
 + (void)removeObject:(JSValue)target key:(id)key context:(JSContext *)ctx {
@@ -626,6 +684,8 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
     } else if ([key isKindOfClass:[NSNumber class]]) {
         JS_SetPropertyInt64(ctx, target, ((NSNumber *)key).longLongValue, JS_UNDEFINED);
     }
+    QJSContext *context = [QJSRuntime contextForJSContext:ctx];
+    [context.valueObjectMap removeObjectForKey:@((uint64_t)JS_VALUE_GET_PTR(target))];
 }
 
 - (void)setObject:(JSValue)target key:(id)key value:(id)value {

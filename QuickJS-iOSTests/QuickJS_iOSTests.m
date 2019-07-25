@@ -7,13 +7,14 @@
 //
 
 #import <QuickJS-iOS/QuickJS-iOS.h>
+#import <QuickJS-iOS/quickjs-libc.h>
 #import <XCTest/XCTest.h>
 
 @interface QuickJS_iOSTests : XCTestCase
 
 @end
 
-@interface TestObject : NSObject
+@interface TestObject : NSObject<QJSValueObject>
 
 @end
 
@@ -23,9 +24,13 @@
     NSLog(@"TestObject dealloc");
 }
 
-- (NSArray *)test:(NSNumber *)a:(NSString *)b:(NSNumber *)c {
-    NSLog(@"%@ %@ %@", a, b, c);
-    return @[@"a", @NO, @(123)];
+- (NSArray *)test:(NSNumber *)a:(NSString *)b:(NSNumber *)c:(NSString *)d {
+    NSLog(@"%@ %@ %@ %@", a, b, c, d);
+    return @[@"a", @NO, @(123), d];
+}
+
+- (NSDictionary *)objectMap {
+    return @{@"testkey": @"testKey from objectMap"};
 }
 
 @end
@@ -56,17 +61,25 @@
 
 - (void)testInitContext {
     QJSRuntime *runtime = [[QJSRuntime alloc] init];
-    QJSContext *context = [runtime newContext];
-    XCTAssert([runtime numberOfContexts] == 1);
-    context = nil;
+    @autoreleasepool {
+        QJSContext *context = [runtime newContext];
+        XCTAssert([runtime numberOfContexts] == 1);
+        context = nil;
+    }
     XCTAssert([runtime numberOfContexts] == 0);
 }
 
 - (void)testMultiContexts {
     QJSRuntime *runtime = [[QJSRuntime alloc] init];
-    QJSContext *context1 = [runtime newContext];
-    context1 = nil;
-    QJSContext *context2 = [runtime newContext];
+
+    QJSContext *context1 = nil;
+    QJSContext *context2 = nil;
+
+    @autoreleasepool {
+        context1 = [runtime newContext];
+        context1 = nil;
+        context2 = [runtime newContext];
+    }
     XCTAssert([runtime numberOfContexts] == 1);
 
     runtime = nil;
@@ -85,20 +98,21 @@
     QJSValue *globalValue = [context getGlobalValue];
     [globalValue setObject:@(1.1) forKey:@"testval"];
 
-    NSDictionary *ret =
-        [context eval:@"console.log(typeof testval); var x = {a:1, b:2};console.log(JSON.stringify(x));x;"].objValue;
-    NSLog(@"%@", ret);
+    QJSValue *retValue = [context eval:@"console.log(fetch); var x = {a:1, b:2};console.log(JSON.stringify(x));x;"];
+
+    if ([retValue isException]) {
+        NSLog(@"%@", [context popException].exception);
+    }
     //    XCTAssert([ret isEqualToString: @"hello"]);
 }
 
 - (void)testContext_methodInvoke {
-    QJSRuntime *runtime = [[QJSRuntime alloc] init];
-    QJSContext *context = [runtime newContext];
-
     TestObject *obj = [TestObject new];
     __weak TestObject *weakObj = obj;
 
     @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
         QJSValue *globalValue = [context getGlobalValue];
         [globalValue setObject:obj forKey:@"testval"];
         TestObject *obj2 = [globalValue objectForKey:@"testval"].objValue;
@@ -106,8 +120,9 @@
         obj2 = nil;
         obj = nil;
 
-        NSArray *ret = [context eval:@"testval.test(1, 'a', false);"].objValue;
-        NSArray *array = @[@"a", @NO, @(123)];
+        NSArray *ret =
+            [context eval:@"console.log(testval.testkey); testval.test(1, 'a', false, testval.testkey);"].objValue;
+        NSArray *array = @[@"a", @NO, @(123), @"testKey from objectMap"];
         XCTAssert([ret isEqual:array]);
 
         QJSValue *result = [context eval:@"testval(123);"];
@@ -115,9 +130,9 @@
 
         QJSException e = [context popException];
         XCTAssert([e.exception isEqualToString:@"TypeError: call for objc-block only!"]);
+        context = nil;
     }
 
-    context = nil;
     XCTAssert(weakObj == nil);
 }
 
@@ -210,6 +225,22 @@
     XCTAssert([QJSRuntime numberOfRuntimes] == 0);
 }
 
+- (void)testQJSValue_reference_each_other {
+    @autoreleasepool {
+        QJSRuntime *runtime = [[QJSRuntime alloc] init];
+        QJSContext *context = [runtime newContext];
+
+        QJSValue *ret = [context eval:@"var a = {b: {}}; a.b.a = a;a;"];
+
+        NSMutableDictionary *a = ret.objValue;
+        NSMutableDictionary *b = a[@"b"];
+        XCTAssert(a == b[@"a"]);
+        b[@"a"] = nil; // break b=>a ref
+        NSLog(@"%@", a);
+        XCTAssert([context cacheSize] == 2);
+    }
+}
+
 - (void)testQJSValueInterface {
     @autoreleasepool {
         QJSRuntime *runtime = [[QJSRuntime alloc] init];
@@ -241,6 +272,23 @@
         XCTAssert([retValue.objValue isEqual:@(23)]);
     }
     XCTAssert([QJSRuntime numberOfRuntimes] == 0);
+}
+
+- (void)testQJSContext_fetch {
+    QJSRuntime *runtime = [[QJSRuntime alloc] init];
+    @autoreleasepool {
+        QJSContext *context = [runtime newContext];
+
+        [context
+            eval:@"console.log(new Date(), 333); t = os.setTimeout(function(){console.log(new Date(), 123);}, 1000);"];
+        [context eval:@"fetch('http://www.github.com', "
+                      @"{}).then(function(resp){console.log(666);console.log(JSON.stringify(resp.headers));return "
+                      @"resp.text()}).catch().then(function(txt){console.log(txt.length);})"];
+        [context eval:@"async function test(){ var a = await fetch('http://www.github.com', {}).then(resp => "
+                      @"resp.text()); console.log(a);}; test();"];
+
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:3]];
+    }
 }
 
 //- (void)testPerformanceExample {

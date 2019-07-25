@@ -27,9 +27,15 @@
 @implementation QJSRuntime
 
 static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
+static NSMapTable<NSNumber *, QJSContext *> *allContextMap;
 
 + (void)initialize {
     runtimeMap = [NSMapTable weakToWeakObjectsMapTable];
+    allContextMap = [NSMapTable strongToWeakObjectsMapTable];
+}
+
++ (QJSContext *)contextForJSContext:(JSContext *)ctx {
+    return [allContextMap objectForKey:@((uint64_t)ctx)];
 }
 
 + (NSUInteger)numberOfRuntimes {
@@ -74,6 +80,7 @@ static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
     QJSContext *context = [[QJSContext alloc] initWithRuntime:self];
     [self.config setupContext:context];
     [self.contextMap setObject:context forKey:context];
+    [allContextMap setObject:context forKey:@((uint64_t)context.ctx)];
     return context;
 }
 
@@ -83,6 +90,7 @@ static NSMapTable<QJSRuntime *, QJSRuntime *> *runtimeMap;
 
 - (void)internalRemoveContext:(QJSContext *)context {
     [self.contextMap removeObjectForKey:context];
+    [allContextMap removeObjectForKey:@((uint64_t)context.ctx)];
 }
 
 @end

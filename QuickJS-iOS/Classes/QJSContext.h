@@ -29,6 +29,10 @@ typedef struct {
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)new NS_UNAVAILABLE;
 
+- (instancetype)initWithJSValue:(JSValue)value context:(QJSContext *)context;
+
++ (instancetype)valueWithJSValue:(JSValue)value context:(QJSContext *)context;
+
 - (id)objValue;
 
 - (QJSValue *)objectForKey:(id)key;
@@ -42,6 +46,12 @@ typedef struct {
 - (QJSValue *)invoke:(NSObject *)arg, ...;
 
 - (id)asProtocol:(Protocol *)protocol;
+
+@end
+
+@protocol QJSValueObject<NSObject>
+
+- (NSDictionary *)objectMap;
 
 @end
 
@@ -60,6 +70,12 @@ typedef struct {
 
 - (QJSValue *)getGlobalValue;
 - (QJSValue *)newObjectValue;
+
+- (id)objectFromValue:(JSValue)value;
+- (JSValue)valueFromObject:(id)object;
+
+- (void)flushCache;
+- (NSUInteger)cacheSize;
 
 @end
 

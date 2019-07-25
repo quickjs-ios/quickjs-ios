@@ -47898,3 +47898,9 @@ JSValue qjs_proxy_target(JSContext *ctx, JSValue proxy) {
     return JS_UNDEFINED;
 
 }
+
+JSValue qjs_new_promise_capability(JSContext *ctx,
+                                         JSValue *resolving_funcs,
+                                         JSValueConst ctor){
+    return js_new_promise_capability(ctx, resolving_funcs, ctor);
+}
