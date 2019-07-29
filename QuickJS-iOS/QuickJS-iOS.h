@@ -15,8 +15,8 @@ FOUNDATION_EXPORT double QuickJS_iOSVersionNumber;
 FOUNDATION_EXPORT const unsigned char QuickJS_iOSVersionString[];
 
 // In this header, you should import all the public headers of your framework using statements like #import <QuickJS_iOS/PublicHeader.h>
-#import <QuickJS-iOS/QJSRuntime.h>
-#import <QuickJS-iOS/QJSContext.h>
-#import <QuickJS-iOS/QJSConfiguration.h>
+#import <QuickJS_iOS/QJSRuntime.h>
+#import <QuickJS_iOS/QJSContext.h>
+#import <QuickJS_iOS/QJSConfiguration.h>
 
 

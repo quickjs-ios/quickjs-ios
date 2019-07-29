@@ -1,0 +1,25 @@
+2019-07-28:
+
+- added dynamic import
+- added Promise.allSettled
+- added String.prototype.matchAll
+- added Object.fromEntries
+- reduced number of ticks in await
+- added BigInt support in Atomics
+- exported JS_NewPromiseCapability()
+- misc async function and async generator fixes
+- enabled hashbang support by default
+
+2019-07-21:
+
+- updated test262 tests
+- updated to Unicode version 12.1.0
+- fixed missing Date object in qjsc
+- fixed multi-context creation
+- misc ES2020 related fixes
+- simplified power and division operators in bignum extension
+- fixed several crash conditions
+
+2019-07-09:
+
+- first public release

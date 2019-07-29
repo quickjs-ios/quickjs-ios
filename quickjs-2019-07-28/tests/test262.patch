@@ -1,0 +1,95 @@
+diff --git a/harness/atomicsHelper.js b/harness/atomicsHelper.js
+index 135c16e..b19f2ef 100644
+--- a/harness/atomicsHelper.js
++++ b/harness/atomicsHelper.js
+@@ -222,10 +222,14 @@ $262.agent.waitUntil = function(typedArray, index, expected) {
+  *   }
+  */
+ $262.agent.timeouts = {
+-  yield: 100,
+-  small: 200,
+-  long: 1000,
+-  huge: 10000,
++//  yield: 100,
++//  small: 200,
++//  long: 1000,
++//  huge: 10000,
++  yield: 20,
++  small: 20,
++  long: 100,
++  huge: 1000,
+ };
+ 
+ /**
+diff --git a/harness/doneprintHandle.js b/harness/doneprintHandle.js
+index a6ea799..b3dec87 100644
+--- a/harness/doneprintHandle.js
++++ b/harness/doneprintHandle.js
+@@ -18,5 +18,6 @@ function $DONE(error) {
+     }
+   } else {
+     __consolePrintHandle__('Test262:AsyncTestComplete');
++    $async_done = true;
+   }
+ }
+diff --git a/harness/regExpUtils.js b/harness/regExpUtils.js
+index 2abfee3..e7c07b1 100644
+--- a/harness/regExpUtils.js
++++ b/harness/regExpUtils.js
+@@ -5,24 +5,27 @@ description: |
+     Collection of functions used to assert the correctness of RegExp objects.
+ ---*/
+ 
++if ($262 && typeof $262.codePointRange === "function") {
++    /* use C function to build the codePointRange (much faster with
++       slow JS engines) */
++    codePointRange = $262.codePointRange;
++} else {
++    codePointRange = function codePointRange(start, end) {
++        const codePoints = [];
++        let length = 0;
++        for (codePoint = start; codePoint < end; codePoint++) {
++            codePoints[length++] = codePoint;
++        }
++        return String.fromCodePoint.apply(null, codePoints);
++    }
++}
++
+ function buildString({ loneCodePoints, ranges }) {
+-  const CHUNK_SIZE = 10000;
+-  let result = Reflect.apply(String.fromCodePoint, null, loneCodePoints);
+-  for (let i = 0; i < ranges.length; i++) {
+-    const range = ranges[i];
+-    const start = range[0];
+-    const end = range[1];
+-    const codePoints = [];
+-    for (let length = 0, codePoint = start; codePoint <= end; codePoint++) {
+-      codePoints[length++] = codePoint;
+-      if (length === CHUNK_SIZE) {
+-        result += Reflect.apply(String.fromCodePoint, null, codePoints);
+-        codePoints.length = length = 0;
+-      }
++    let result = String.fromCodePoint.apply(null, loneCodePoints);
++    for (const [start, end] of ranges) {
++        result += codePointRange(start, end + 1);
+     }
+-    result += Reflect.apply(String.fromCodePoint, null, codePoints);
+-  }
+-  return result;
++    return result;
+ }
+ 
+ function testPropertyEscapes(regex, string, expression) {
+diff --git a/test/language/comments/hashbang/use-strict.js b/test/language/comments/hashbang/use-strict.js
+index 962614c..541c115 100644
+--- a/test/language/comments/hashbang/use-strict.js
++++ b/test/language/comments/hashbang/use-strict.js
+@@ -10,7 +10,7 @@ description: >
+ info: |
+     HashbangComment::
+       #! SingleLineCommentChars[opt]
+-flags: [raw]
++flags: [raw, noStrict]
+ features: [hashbang]
+ ---*/
+ 
