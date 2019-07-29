@@ -36,8 +36,6 @@
 
 @implementation QJSConfiguration
 
-JSValue qjs_new_promise_capability(JSContext *ctx, JSValue *resolving_funcs, JSValueConst ctor);
-
 static int eval_buf(JSContext *ctx, const void *buf, int buf_len, const char *filename, int eval_flags) {
     JSValue val;
     int ret;
@@ -103,7 +101,7 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val, int argc, JSValue
     dispatch_block_t_2 fetch = ^id(NSString *url, NSDictionary *dic) {
         QJSFetch *fetchObject = [QJSFetch new];
         JSValue resolving_funcs[2] = {0};
-        JSValue promise = qjs_new_promise_capability(ctx, resolving_funcs, JS_UNDEFINED);
+        JSValue promise = JS_NewPromiseCapability(ctx, resolving_funcs);
         fetchObject.resolve = [[QJSValue alloc] initWithJSValue:resolving_funcs[0] context:context];
         fetchObject.reject = [[QJSValue alloc] initWithJSValue:resolving_funcs[1] context:context];
 
