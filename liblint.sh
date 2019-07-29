@@ -1,1 +1,1 @@
-pod lib lint QuickJS-iOS.podspec  --verbose --allow-warnings .
+pod lib lint QuickJS_iOS.podspec  --verbose --allow-warnings

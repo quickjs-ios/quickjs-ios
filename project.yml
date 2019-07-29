@@ -1,4 +1,4 @@
-name: QuickJS-iOS
+name: QuickJS_iOS
 attributes:
   CLASSPREFIX: QJS
 options:
@@ -6,13 +6,13 @@ options:
   developmentLanguage: en
 settings:
 targets:
-  QuickJS-iOS:
+  QuickJS_iOS:
     type: library.static
     platform: iOS
     deploymentTarget: "8.0"
     scheme:
       testTargets:
-        - QuickJS-iOSTests
+        - QuickJS_iOSTests
     sources:
       - path: quickjs-2019-07-28/quickjs.c
       - path: quickjs-2019-07-28/bjson.c
@@ -33,11 +33,11 @@ targets:
       ENABLE_BITCODE: YES
       TARGETED_DEVICE_FAMILY: 1
       PRODUCT_BUNDLE_IDENTIFIER: com.luafan.QuickJS-iOS
-  QuickJS-iOSTests:
+  QuickJS_iOSTests:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "8.0"
     sources: QuickJS-iOSTests
     dependencies:
-      - target: QuickJS-iOS
+      - target: QuickJS_iOS
 

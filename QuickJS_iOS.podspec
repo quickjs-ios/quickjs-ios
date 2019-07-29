@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
 
-  spec.name         = "QuickJS-iOS"
+  spec.name         = "QuickJS_iOS"
   spec.version      = "0.0.4"
   spec.summary      = "QuickJS iOS Bridge"
   spec.description  = <<-DESC

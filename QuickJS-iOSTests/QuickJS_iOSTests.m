@@ -6,8 +6,7 @@
 //  Copyright © 2019 Sam Chang. All rights reserved.
 //
 
-#import <QuickJS-iOS/QuickJS-iOS.h>
-#import <QuickJS-iOS/quickjs-libc.h>
+#import <QuickJS_iOS/QuickJS_iOS.h>
 #import <XCTest/XCTest.h>
 
 @interface QuickJS_iOSTests : XCTestCase
@@ -279,15 +278,25 @@
     @autoreleasepool {
         QJSContext *context = [runtime newContext];
 
+        __weak XCTestExpectation *expectation = [self expectationWithDescription:@"wait fetch"];
+        
+        QJSValue *globalValue = [context getGlobalValue];
+        [globalValue setObject: ^id{
+            [expectation fulfill];
+            return nil;
+        } forKey: @"callback"];
+
         [context
             eval:@"console.log(new Date(), 333); t = os.setTimeout(function(){console.log(new Date(), 123);}, 1000);"];
         [context eval:@"fetch('http://www.github.com', "
                       @"{}).then(function(resp){console.log(666);console.log(JSON.stringify(resp.headers));return "
                       @"resp.text()}).catch().then(function(txt){console.log(txt.length);})"];
         [context eval:@"async function test(){ var a = await fetch('http://www.github.com', {}).then(resp => "
-                      @"resp.text()); console.log(a);}; test();"];
+         @"resp.text()); console.log(a);callback();}; test();"];
 
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:3]];
+        [self waitForExpectationsWithTimeout: 60 handler:^(NSError * _Nullable error) {
+            
+        }];
     }
 }
 
