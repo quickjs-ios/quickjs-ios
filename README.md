@@ -21,8 +21,8 @@ open the project, select simulator as the target, then press Command+U to run th
 
 ## Intergrate your project with cocoapods
 
-1. add pod dependency `pod 'QuickJS-iOS'`
-2. add header import `#import <QuickJS-iOS/QuickJS-iOS.h>`
+1. add pod dependency `pod 'QuickJS_iOS'`
+2. add header import `#import <QuickJS_iOS/QuickJS_iOS.h>`
 
 ## Samples
 
