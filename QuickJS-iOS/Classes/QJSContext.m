@@ -244,18 +244,9 @@ JSValue QJS_IteratorNext(JSContext *ctx, JSValueConst enum_obj, JSValueConst met
                          BOOL *pdone);
 int QJS_IteratorClose(JSContext *ctx, JSValueConst enum_obj, BOOL is_exception_pending);
 
-int QJS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab, uint32_t *plen, JSObject *p, int flags);
-
 JSValue qjs_proxy_constructor(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 
 JSValue qjs_proxy_target(JSContext *ctx, JSValue proxy);
-
-#define JS_GPN_SYMBOL_MASK (1 << 0)
-#define JS_GPN_STRING_MASK (1 << 1)
-/* only include the enumerable properties */
-#define JS_GPN_ENUM_ONLY (1 << 2)
-/* set theJSPropertyEnum.is_enumerable field */
-#define JS_GPN_SET_ENUM (1 << 3)
 
 extern int QJS_CLASS_MAP;
 extern int QJS_ATOM_next;
@@ -528,9 +519,8 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
 
                 JSPropertyEnum *tab_atom;
                 uint32_t tab_atom_count;
-                JSObject *p = JS_VALUE_GET_OBJ(value);
 
-                if (QJS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, p,
+                if (JS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, value,
                                             JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
                     break;
 
