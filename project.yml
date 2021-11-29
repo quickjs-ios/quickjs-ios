@@ -14,22 +14,22 @@ targets:
       testTargets:
         - QuickJS_iOSTests
     sources:
-      - path: quickjs-2019-08-10/quickjs.c
-      - path: quickjs-2019-08-10/bjson.c
-      - path: quickjs-2019-08-10/cutils.c
-      - path: quickjs-2019-08-10/libbf.c
-      - path: quickjs-2019-08-10/libregexp.c
-      - path: quickjs-2019-08-10/libunicode.c
-      - path: quickjs-2019-08-10/quickjs-libc.c
-      - path: quickjs-2019-08-10/quickjs.h
-      - path: quickjs-2019-08-10/quickjs-libc.h
-      - path: quickjs-2019-08-10/quickjs-atom.h
+      - path: quickjs/quickjs.c
+      - path: quickjs/cutils.c
+      - path: quickjs/libbf.c
+      - path: quickjs/libregexp.c
+      - path: quickjs/libunicode.c
+      - path: quickjs/quickjs-libc.c
+      - path: quickjs/unicode_gen.c
+      - path: quickjs/quickjs.h
+      - path: quickjs/quickjs-libc.h
+      - path: quickjs/quickjs-atom.h
       - path: QuickJS-iOS
         excludes:
     settings:
       INFOPLIST_FILE: QuickJS-iOS/Info.plist
       GCC_PREFIX_HEADER: QuickJS-iOS/PrefixHeader.pch
-      OTHER_CFLAGS: $(inherited) -DCONFIG_VERSION=\"2019-08-10\"
+      OTHER_CFLAGS: $(inherited) -DCONFIG_VERSION=\"2021-03-27\"
       ENABLE_BITCODE: YES
       TARGETED_DEVICE_FAMILY: 1
       PRODUCT_BUNDLE_IDENTIFIER: com.luafan.QuickJS-iOS

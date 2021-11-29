@@ -21,7 +21,6 @@
 
 @interface QJSContext ()
 
-@property (nonatomic, strong) QJSRuntime *runtime;
 @property (nonatomic, strong) NSMapTable<NSNumber *, id> *valueObjectMap;
 @property (nonatomic, strong) dispatch_source_t timer;
 
@@ -400,13 +399,30 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
 
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
+static JSContext *JS_NewCustomContext(JSRuntime *rt)
+{
+    JSContext *ctx;
+    ctx = JS_NewContext(rt);
+    if (!ctx)
+        return NULL;
+    /* system modules */
+    js_init_module_std(ctx, "std");
+    js_init_module_os(ctx, "os");
+    return ctx;
+}
+
 - (instancetype)initWithRuntime:(QJSRuntime *)runtime {
     self = [super init];
     if (self) {
         self.valueObjectMap = [NSMapTable strongToWeakObjectsMapTable];
 
         self.runtime = runtime;
-        self.ctx = JS_NewContext(runtime.rt);
+        self.ctx = JS_NewCustomContext(runtime.rt);
+
+        js_std_add_helpers(self.ctx, 0, NULL);
+
+        js_std_set_worker_new_context_func(JS_NewCustomContext);
+        js_std_init_handlers(runtime.rt);
 
         JS_NewClass(runtime.rt, js_objc_class_id, &js_objc_class);
 

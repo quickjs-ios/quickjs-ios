@@ -57,6 +57,7 @@ typedef struct {
 
 @interface QJSContext : NSObject
 
+@property (nonatomic, strong) QJSRuntime *runtime;
 @property (nonatomic, assign) JSContext *ctx;
 
 - (instancetype)init NS_UNAVAILABLE;

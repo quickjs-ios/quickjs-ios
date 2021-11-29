@@ -81,15 +81,11 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val, int argc, JSValue
     __weak QJSContext *context = context2;
 
     JSContext *ctx = context.ctx;
-
-    js_std_add_helpers(ctx, 0, NULL);
-    js_init_module_std(ctx, "std");
-    js_init_module_os(ctx, "os");
-
+    
     const char *str = "import * as std from 'std';\n"
                       "import * as os from 'os';\n"
-                      "std.global.std = std;\n"
-                      "std.global.os = os;\n";
+                      "globalThis.std = std;\n"
+                      "globalThis.os = os;\n";
     eval_buf(ctx, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE);
 
     QJSValue *globalValue = [context getGlobalValue];
