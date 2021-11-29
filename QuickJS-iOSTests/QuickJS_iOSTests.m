@@ -279,12 +279,14 @@
         QJSContext *context = [runtime newContext];
 
         __weak XCTestExpectation *expectation = [self expectationWithDescription:@"wait fetch"];
-        
+
         QJSValue *globalValue = [context getGlobalValue];
-        [globalValue setObject: ^id{
-            [expectation fulfill];
-            return nil;
-        } forKey: @"callback"];
+        [globalValue
+            setObject:^id {
+                [expectation fulfill];
+                return nil;
+            }
+               forKey:@"callback"];
 
         [context
             eval:@"console.log(new Date(), 333); t = os.setTimeout(function(){console.log(new Date(), 123);}, 1000);"];
@@ -292,11 +294,12 @@
                       @"{}).then(function(resp){console.log(666);console.log(JSON.stringify(resp.headers));return "
                       @"resp.text()}).catch().then(function(txt){console.log(txt.length);})"];
         [context eval:@"async function test(){ var a = await fetch('http://www.github.com', {}).then(resp => "
-         @"resp.text()); console.log(a);callback();}; test();"];
+                      @"resp.text()); console.log(a);callback();}; test();"];
 
-        [self waitForExpectationsWithTimeout: 60 handler:^(NSError * _Nullable error) {
-            
-        }];
+        [self waitForExpectationsWithTimeout:60
+                                     handler:^(NSError *_Nullable error){
+
+                                     }];
     }
 }
 

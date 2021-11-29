@@ -399,8 +399,7 @@ static JSValue js_objc_proxy_get(JSContext *ctx, JSValueConst val, int argc, JSV
 
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
-static JSContext *JS_NewCustomContext(JSRuntime *rt)
-{
+static JSContext *JS_NewCustomContext(JSRuntime *rt) {
     JSContext *ctx;
     ctx = JS_NewContext(rt);
     if (!ctx)
@@ -537,7 +536,7 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
                 uint32_t tab_atom_count;
 
                 if (JS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, value,
-                                            JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
+                                           JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY))
                     break;
 
                 for (int i = 0; i < tab_atom_count; i++) {

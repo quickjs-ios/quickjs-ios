@@ -81,7 +81,7 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val, int argc, JSValue
     __weak QJSContext *context = context2;
 
     JSContext *ctx = context.ctx;
-    
+
     const char *str = "import * as std from 'std';\n"
                       "import * as os from 'os';\n"
                       "globalThis.std = std;\n"
