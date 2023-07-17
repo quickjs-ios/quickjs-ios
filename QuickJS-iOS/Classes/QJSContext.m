@@ -338,19 +338,23 @@ static JSValue js_objc_invoke(JSContext *ctx, JSValueConst this_val, int argc, J
     [invocation setSelector:selector];
     [invocation setTarget:object];
 
-    for (int i = 0; i < argc; i++) {
-        NSObject *arg = [QJSContext objectFromValue:argv[i] context:ctx];
-        [invocation setArgument:&arg atIndex:2 + i];
-    }
+    @autoreleasepool {
+        NSMutableArray *holders = @[].mutableCopy;
+        for (int i = 0; i < argc; i++) {
+            NSObject *arg = [QJSContext objectFromValue:argv[i] context:ctx];
+            [holders addObject:arg];
+            [invocation setArgument:&arg atIndex:2 + i];
+        }
 
-    [invocation invoke];
+        [invocation invoke];
 
-    // support return object only.
-    if (*[signature methodReturnType] == '@') {
-        void *retValue = nil;
-        [invocation getReturnValue:&retValue];
-        if (retValue) {
-            return [QJSContext valueFromObject:(__bridge id)retValue context:ctx];
+        // support return object only.
+        if (*[signature methodReturnType] == '@') {
+            void *retValue = nil;
+            [invocation getReturnValue:&retValue];
+            if (retValue) {
+                return [QJSContext valueFromObject:(__bridge id)retValue context:ctx];
+            }
         }
     }
 

@@ -221,7 +221,7 @@
         [globalValue setObject:newValue forKey:@"test2"];
         XCTAssert([[context eval:@"newValue.test = 'def';test2.test;"].objValue isEqual:@"def"]);
     }
-    XCTAssert([QJSRuntime numberOfRuntimes] == 0);
+    XCTAssertEqual([QJSRuntime numberOfRuntimes], 0);
 }
 
 - (void)testQJSValue_reference_each_other {

@@ -9,7 +9,7 @@ targets:
   QuickJS_iOS:
     type: library.static
     platform: iOS
-    deploymentTarget: "8.0"
+    deploymentTarget: "11.0"
     scheme:
       testTargets:
         - QuickJS_iOSTests
@@ -36,7 +36,7 @@ targets:
   QuickJS_iOSTests:
     type: bundle.unit-test
     platform: iOS
-    deploymentTarget: "8.0"
+    deploymentTarget: "11.0"
     sources: QuickJS-iOSTests
     dependencies:
       - target: QuickJS_iOS

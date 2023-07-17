@@ -10,7 +10,7 @@ Pod::Spec.new do |spec|
   spec.homepage     = "https://github.com/quickjs-ios/quickjs-ios"
   spec.license      = "MIT"
   spec.author       = "Sam Chang"
-  spec.platform     = :ios, "8.0"
+  spec.platform     = :ios, "11.0"
   spec.source       = { :git => "https://github.com/quickjs-ios/quickjs-ios.git", :tag => "#{spec.version}", :submodules => true }
 
   spec.source_files  = "QuickJS-iOS/Classes", "QuickJS-iOS/QuickJS_iOS.h", "quickjs/quickjs.c", "quickjs/bjson.c", "quickjs/cutils.c", "quickjs/libbf.c", "quickjs/libregexp.c", "quickjs/libunicode.c", "quickjs/quickjs-libc.c", "quickjs/*.h"
